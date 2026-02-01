@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pink Study Alarm</title>
+
+<style>
+:root{
+  --main:#d81b60;
+  --bg:#fce4ec;
+}
+body{
+  direction:rtl;
+  font-family:Arial;
+  background:linear-gradient(var(--main),var(--bg));
+  margin:0;
+  padding:5px;
+  max-width:480px;
+  margin:auto;
+}
+.header{text-align:center;color:var(--main);margin:5px 0;}
+.box{background:white;padding:10px;border-radius:10px;margin-bottom:8px;}
+
+input,select{
+  width:85%;
+  padding:8px;
+  margin:4px auto;
+  display:block;
+  font-size:15px;
+  border-radius:6px;
+  box-sizing:border-box;
+}
+button{
+  width:85%;
+  padding:10px;
+  margin:6px auto;
+  display:block;
+  background:var(--main);
+  color:white;
+  border:none;
+  border-radius:6px;
+}
+
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{border:1px solid #ccc;padding:4px;text-align:center;}
+
+.actions{display:flex;justify-content:center;gap:6px;}
+.icon-btn{
+  display:flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:50%;color:white;font-size:18px;
+}
+.icon-btn.edit{background:#8e24aa;}
+.icon-btn.delete{background:#e53935;}
+
+@media (min-width:768px){body{display:none;}}
+</style>
+</head>
+
+<body>
+
+<!-- شاشة القفل -->
+<div id="lockScreen" style="position:fixed;top:0;left:0;width:100%;height:100%;
+background:#fce4ec;display:flex;flex-direction:column;
+align-items:center;justify-content:center;z-index:9999;">
+<h2>🔒 التطبيق محمي</h2>
+<p>أدخل كلمة السر</p>
+<input type="password" id="appPassword" placeholder="كلمة السر">
+<button onclick="checkPassword()">دخول</button>
+<p style="font-size:13px;color:#555;">حقوق الملكية © محمد عبد النعيم سلاطين</p>
+<p id="errorMsg" style="color:red"></p>
+</div>
+
+<div class="box">
+<h2 class="header">🎀 Pink Study Alarm</h2>
+
+<button onclick="toggleNotifications()">🔔 تشغيل / إيقاف التنبيهات</button>
+
+<input id="subject" placeholder="المادة">
+<input id="teacher" placeholder="اسم الأستاذ">
+
+<select id="day">
+<option>السبت</option>
+<option>الأحد</option>
+<option>الاثنين</option>
+<option>الثلاثاء</option>
+<option>الأربعاء</option>
+<option>الخميس</option>
+<option>الجمعة</option>
+</select>
+
+<label>من الساعة:</label>
+<input type="time" id="fromTime">
+
+<label>إلى الساعة:</label>
+<input type="time" id="toTime">
+
+<select id="term">
+<option>الترم 1</option>
+<option>الترم 2</option>
+</select>
+
+<select id="remindBefore">
+<option value="5">قبل 5 دقائق</option>
+<option value="10">قبل 10 دقائق</option>
+<option value="15">قبل 15 دقيقة</option>
+<option value="30">قبل 30 دقيقة</option>
+</select>
+
+<button onclick="addLesson()">💾 حفظ الدرس</button>
+</div>
+
+<!-- فلتر حسب اليوم -->
+<div class="box">
+<select id="filterDay" onchange="displayLessons()">
+<option value="الكل">📅 كل الأيام</option>
+<option value="السبت">السبت</option>
+<option value="الأحد">الأحد</option>
+<option value="الاثنين">الاثنين</option>
+<option value="الثلاثاء">الثلاثاء</option>
+<option value="الأربعاء">الأربعاء</option>
+<option value="الخميس">الخميس</option>
+<option value="الجمعة">الجمعة</option>
+</select>
+</div>
+
+<div class="box">
+<table>
+<thead>
+<tr>
+<th>المادة</th>
+<th>اليوم</th>
+<th>الأستاذ</th>
+<th>الوقت</th>
+<th>الترم</th>
+<th>إجراءات</th>
+</tr>
+</thead>
+<tbody id="lessonList"></tbody>
+</table>
+</div>
+
+<div style="text-align:center;font-size:12px;color:#555;">
+حقوق الملكية © محمد عبد النعيم سلاطين
+</div>
+
+<script>
+const OWNER_PASSWORD = "محمد2026";
+let notificationsEnabled = true;
+
+window.onload = function(){
+  if(localStorage.getItem("authorized")==="true"){
+    lockScreen.style.display="none";
+  }
+}
+
+function checkPassword(){
+  if(appPassword.value === OWNER_PASSWORD){
+    localStorage.setItem("authorized","true");
+    lockScreen.style.display="none";
+  } else {
+    errorMsg.innerText="❌ كلمة السر غير صحيحة";
+  }
+}
+
+let lessons = JSON.parse(localStorage.getItem("lessons")) || [];
+let editIndex = -1;
+
+const daysOrder = ["السبت","الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"];
+
+function formatTime12(time){
+  let [h,m]=time.split(":");
+  h=parseInt(h);
+  let p=h>=12?"م":"ص";
+  h=h%12;if(h==0)h=12;
+  return h+":"+m+" "+p;
+}
+
+function toggleNotifications(){
+  notificationsEnabled = !notificationsEnabled;
+  alert(notificationsEnabled ? "🔔 تم تشغيل التنبيهات" : "🔕 تم إيقاف التنبيهات");
+}
+
+function sortLessons(){
+  lessons.sort((a,b)=>{
+    let d = daysOrder.indexOf(a.day) - daysOrder.indexOf(b.day);
+    if(d!==0) return d;
+    return a.fromTime.localeCompare(b.fromTime);
+  });
+}
+
+function addLesson(){
+  let lesson={
+    subject:subject.value,
+    teacher:teacher.value,
+    day:day.value,
+    fromTime:fromTime.value,
+    toTime:toTime.value,
+    term:term.value,
+    remindBefore:remindBefore.value
+  };
+
+  if(editIndex===-1) lessons.push(lesson);
+  else { lessons[editIndex]=lesson; editIndex=-1; }
+
+  sortLessons();
+  localStorage.setItem("lessons",JSON.stringify(lessons));
+  clearForm();
+  displayLessons();
+  if(notificationsEnabled) setReminder(lesson);
+}
+
+function displayLessons(){
+  let filter = document.getElementById("filterDay").value;
+  lessonList.innerHTML="";
+  lessons.forEach((l,i)=>{
+    if(filter==="الكل" || l.day===filter){
+      lessonList.innerHTML+=`
+      <tr>
+        <td>${l.subject}</td>
+        <td>${l.day}</td>
+        <td>${l.teacher}</td>
+        <td>${formatTime12(l.fromTime)} - ${formatTime12(l.toTime)}</td>
+        <td>${l.term}</td>
+        <td class="actions">
+          <div class="icon-btn edit" onclick="editLesson(${i})">✏️</div>
+          <div class="icon-btn delete" onclick="deleteLesson(${i})">🗑️</div>
+        </td>
+      </tr>`;
+    }
+  });
+}
+
+function editLesson(i){
+  let l=lessons[i];
+  subject.value=l.subject;
+  teacher.value=l.teacher;
+  day.value=l.day;
+  fromTime.value=l.fromTime;
+  toTime.value=l.toTime;
+  term.value=l.term;
+  remindBefore.value=l.remindBefore;
+  editIndex=i;
+}
+
+function deleteLesson(i){
+  lessons.splice(i,1);
+  localStorage.setItem("lessons",JSON.stringify(lessons));
+  displayLessons();
+}
+
+function clearForm(){
+  subject.value="";
+  teacher.value="";
+  fromTime.value="";
+  toTime.value="";
+}
+
+function setReminder(l){
+  let now=new Date();
+  let t=new Date();
+  let [h,m]=l.fromTime.split(":");
+  t.setHours(h,m,0);
+  let diff=t-now-(l.remindBefore*60000);
+  if(diff>0){
+    setTimeout(()=>{
+      new Notification("📚 تذكير بالدرس",{
+        body:`درس ${l.subject} من ${formatTime12(l.fromTime)} إلى ${formatTime12(l.toTime)}`
+      });
+    },diff);
+  }
+}
+
+if(Notification.permission!=="granted"){
+  Notification.requestPermission();
+}
+
+sortLessons();
+displayLessons();
+</script>
+
+</body>
+</html>
